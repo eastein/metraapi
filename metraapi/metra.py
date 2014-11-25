@@ -181,14 +181,24 @@ if __name__ == '__main__':
             print "%(id)s: %(name)s" % line
         sys.exit(0)
 
+    stations = get_stations_from_line(line)
+    station_codes = set([o['id'] for o in stations])
+
     try :
-        dpt = sys.argv[2]
-        arv = sys.argv[3]
+        dpt = sys.argv[2].upper()
+        arv = sys.argv[3].upper()
     except IndexError :
-        stations = get_stations_from_line(line)
         for station in stations:
             print "%(id)s: %(name)s" % station
         sys.exit(0)
+
+    if dpt not in station_codes :
+        print '%s is not a valid station.' % dpt
+        sys.exit(1)
+    
+    if arv not in station_codes :
+        print '%s is not a valid station.' % arv
+        sys.exit(1)
 
     LKUP = {
         True: "ON",
