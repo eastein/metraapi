@@ -5,6 +5,7 @@ import json
 from collections import OrderedDict
 import datetime
 import re
+from pytz import utc, timezone
 
 TIME_RE = re.compile('^([0-9]+):([0-9]+)(am|pm)$')
 
@@ -33,6 +34,11 @@ STATIONS_CACHETIME = 60.0
 
 
 class Internal(object):
+    CHICAGOTIME = timezone('US/Central')
+
+    @classmethod
+    def localize(cls, dt):
+        return cls.CHICAGOTIME.localize(dt)
 
     @classmethod
     def parse_reltime(cls, s, now):
@@ -60,8 +66,8 @@ class Internal(object):
         tomorrow = datetime.timedelta(days=1) + now
 
         potential_times = [
-            datetime.datetime(year=now.year, month=now.month, day=now.day, **kw),
-            datetime.datetime(year=tomorrow.year, month=tomorrow.month, day=tomorrow.day, **kw)
+            cls.localize(datetime.datetime(year=now.year, month=now.month, day=now.day, **kw)),
+            cls.localize(datetime.datetime(year=tomorrow.year, month=tomorrow.month, day=tomorrow.day, **kw))
         ]
 
         potential_times.sort(cmp=lambda a, b: cmp(abs(a - now), abs(b - now)))
@@ -73,7 +79,7 @@ class Internal(object):
         if dt is None:
             return '?'
 
-        return dt.strftime("%H:%M:%S")
+        return dt.strftime("%H:%M")
 
     @classmethod
     def max_datetime(cls, a, b):
@@ -93,8 +99,9 @@ class Internal(object):
 
     @classmethod
     def parse_datetime(cls, odd_time):
+        # is this timezone right?
         unixtime = int(odd_time.strip('/Date()')) / 1000
-        return datetime.datetime.fromtimestamp(unixtime)
+        return cls.localize(datetime.datetime.fromtimestamp(unixtime))
 
 
 def get_lines():
