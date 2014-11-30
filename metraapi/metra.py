@@ -24,6 +24,11 @@ class InvalidStationException(MetraException):
     """The station requested does not exist."""
 
 
+class InvalidLineException(MetraException):
+
+    """The line requested does not exist."""
+
+
 STATIONS_CACHETIME = 60.0
 
 
@@ -119,14 +124,23 @@ def get_stations_from_line(line_id):
                           params={'trackerNumber': 0, 'trainLineId': line_id})
     stations = result.json(object_pairs_hook=OrderedDict)['stations']
 
-    return [{'id': station['id'], 'name': station['name']} for station in stations.values()]
+    return [{'id': station['id'], 'name': station['name'].strip()} for station in stations.values()]
 
 
 class Metra(object):
 
+    def __init__(self):
+        self._lines = dict([(l['id'], Line(l['id'], l['name'])) for l in get_lines()])
+
     @property
     def lines(self):
-        return dict([(l['id'], Line(l['id'], l['name'])) for l in get_lines()])
+        return self._lines
+
+    def line(self, line_id):
+        if line_id not in self._lines:
+            raise InvalidLineException
+
+        return self._lines[line_id]
 
 
 class Line(object):
