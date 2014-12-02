@@ -99,9 +99,9 @@ class Internal(object):
 
     @classmethod
     def parse_datetime(cls, odd_time):
-        # is this timezone right?
+        # The time is coming back from Metra in UTC. Treat it as such and then convert it to Chicago local time
         unixtime = int(odd_time.strip('/Date()')) / 1000
-        return cls.localize(datetime.datetime.fromtimestamp(unixtime))
+        return utc.localize(datetime.datetime.utcfromtimestamp(unixtime)).astimezone(cls.CHICAGOTIME)
 
 
 def get_lines():
