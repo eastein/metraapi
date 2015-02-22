@@ -6,6 +6,7 @@ from collections import OrderedDict
 import datetime
 import re
 from pytz import utc, timezone
+import pprint
 
 TIME_RE = re.compile('^([0-9]+):([0-9]+)(am|pm)$')
 
@@ -273,7 +274,7 @@ class Run(object):
         return "Train #%d %s->%s DPT @ %s (sched %s), ARV @ %s (sched %s). GPS:%s, ONTIME:%s. ENROUTE:%s. (as of %s)" % (self.train_number, self.dpt_station, self.arv_station, jt(self.estimated_dpt_time), jt(self.scheduled_dpt_time), jt(self.estimated_arv_time), jt(self.scheduled_arv_time), self.gps, self.on_time, self.en_route, jt(self.as_of))
 
 
-def get_arrival_times(line_id, origin_station_id, destination_station_id):
+def get_arrival_times(line_id, origin_station_id, destination_station_id, verbose=False):
     headers = {
         'Content-Type': 'application/json; charset=UTF-8'
     }
@@ -284,11 +285,15 @@ def get_arrival_times(line_id, origin_station_id, destination_station_id):
             "Origin": origin_station_id
         }
     }
-    result = requests.post('http://12.205.200.243/AJAXTrainTracker.svc/GetAcquityTrainData',
-                           headers=headers, data=json.dumps(payload))
+    TRAINDATA_URL = 'http://12.205.200.243/AJAXTrainTracker.svc/GetAcquityTrainData'
+    result = requests.post(TRAINDATA_URL, headers=headers, data=json.dumps(payload))
 
     d = result.json()['d']
     data = json.loads(d)
+
+    if verbose :
+        print 'data from %s:' % TRAINDATA_URL
+        pprint.pprint(data)
 
     now = Internal.parse_datetime(data['responseTime'])
 
@@ -319,9 +324,13 @@ def get_arrival_times(line_id, origin_station_id, destination_station_id):
                 arrivals.append(a)
                 arrival_bytrain[a['train_num']] = a
 
-    more_arrivals = requests.get('http://metrarail.com/content/metra/en/home/jcr:content/trainTracker.get_train_data.json',
-                                 params={'line': line_id.upper(), 'origin': origin_station_id, 'destination': destination_station_id})
+    ARRIVALS_URL = 'http://metrarail.com/content/metra/en/home/jcr:content/trainTracker.get_train_data.json'
+    more_arrivals = requests.get(ARRIVALS_URL, params={'line': line_id.upper(), 'origin': origin_station_id, 'destination': destination_station_id})
     more_arrivals = more_arrivals.json()
+
+    if verbose :
+        print 'data from %s:' % ARRIVALS_URL
+        pprint.pprint(more_arrivals)
 
     for (k, v) in more_arrivals.iteritems():
         if k.startswith('train'):
