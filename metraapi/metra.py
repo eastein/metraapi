@@ -42,13 +42,19 @@ class Internal(object):
         return cls.CHICAGOTIME.localize(dt)
 
     @classmethod
-    def parse_reltime(cls, s, now):
+    def parse_reltime(cls, now, s, ampm):
         if s is None:
             return None
 
+        # print 'parsing: %s, %s, %s' % (now, s, ampm)
+
         m = TIME_RE.match(s)
         if not m:
-            return
+            if ampm is not None:
+                m = TIME_RE.match(s + ampm)
+                if not m:
+                    # print '%s was not right... not even with ampm' % s
+                    return
 
         h, m, ampm = m.groups(1)
         h = int(h)
@@ -312,6 +318,8 @@ def get_arrival_times(line_id, origin_station_id, destination_station_id, verbos
             pprint.pprint(gtd_data)
 
     now = Internal.parse_datetime(acquity_data['responseTime'])
+    if verbose:
+        print 'now = %s' % repr(now)
 
     def difference_greaterthan(a, b, hours):
         return abs(a - b) > datetime.timedelta(hours=hours)
@@ -354,14 +362,16 @@ def get_arrival_times(line_id, origin_station_id, destination_station_id, verbos
                 a['gps'] = v['hasData']
                 a['on_time'] = not v['hasDelay']
                 a['en_route'] = not v['notDeparted']
+
                 a['scheduled_dpt_time'] = Internal.min_datetime(
-                    a.get('scheduled_dpt_time'), Internal.parse_reltime(v.get('scheduled_dpt_time'), now))
+                    a.get('scheduled_dpt_time'), Internal.parse_reltime(now, v.get('scheduled_dpt_time'), v.get('schDepartInTheAM')))
                 a['estimated_dpt_time'] = Internal.min_datetime(
-                    a.get('estimated_dpt_time'), Internal.parse_reltime(v.get('estimated_dpt_time'), now))
+                    a.get('estimated_dpt_time'), Internal.parse_reltime(now, v.get('estimated_dpt_time'), v.get('estDepartInTheAM')))
+
                 a['scheduled_arv_time'] = Internal.max_datetime(
-                    a.get('scheduled_arv_time'), Internal.parse_reltime(v.get('scheduled_arv_time'), now))
+                    a.get('scheduled_arv_time'), Internal.parse_reltime(now, v.get('scheduled_arv_time'), v.get('schArriveInTheAM')))
                 a['estimated_arv_time'] = Internal.max_datetime(
-                    a.get('estimated_arv_time'), Internal.parse_reltime(v.get('estimated_arv_time'), now))
+                    a.get('estimated_arv_time'), Internal.parse_reltime(now, v.get('estimated_arv_time'), v.get('estArriveInTheAM')))
 
     for a in arrivals:
         for k in ['gps', 'on_time', 'en_route', 'scheduled_dpt_time', 'estimated_dpt_time', 'scheduled_arv_time', 'estimated_arv_time']:

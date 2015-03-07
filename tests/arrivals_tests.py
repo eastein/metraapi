@@ -538,8 +538,15 @@ class ArrivalTests(unittest.TestCase):
                                 u'train_num': u'368',
                                 u'trip_id': u'UP-N_UN368_V1_B'}}
 
-        # def get_arrival_times(line_id, origin_station_id, destination_station_id, verbose=True, acquity_data=None, gtd_data=None):
-        arrivals = metraapi.metra.get_arrival_times('UP-N', 'RAVENSWOOD', 'OTC', acquity_data=acquity_data, gtd_data=gtd_data)
+        arrivals = metraapi.metra.get_arrival_times(
+            'UP-N', 'RAVENSWOOD', 'OTC', acquity_data=acquity_data, gtd_data=gtd_data)
         self.assertEquals(len(arrivals), 3)
 
         # TODO make this test more thorough
+        sch_arv_time_0 = arrivals[0]['scheduled_arv_time']
+
+        self.assertEquals(sch_arv_time_0.year, 2015)
+        self.assertEquals(sch_arv_time_0.month, 3)
+        self.assertEquals(sch_arv_time_0.day, 6)
+        self.assertEquals(sch_arv_time_0.hour, 21)
+        self.assertEquals(sch_arv_time_0.minute, 25)
