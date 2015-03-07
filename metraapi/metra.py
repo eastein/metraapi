@@ -274,39 +274,56 @@ class Run(object):
         return "Train #%d %s->%s DPT @ %s (sched %s), ARV @ %s (sched %s). GPS:%s, ONTIME:%s. ENROUTE:%s. (as of %s)" % (self.train_number, self.dpt_station, self.arv_station, jt(self.estimated_dpt_time), jt(self.scheduled_dpt_time), jt(self.estimated_arv_time), jt(self.scheduled_arv_time), self.gps, self.on_time, self.en_route, jt(self.as_of))
 
 
-def get_arrival_times(line_id, origin_station_id, destination_station_id, verbose=False):
-    headers = {
-        'Content-Type': 'application/json; charset=UTF-8'
-    }
-    payload = {
-        "stationRequest": {
-            "Corridor": line_id,
-            "Destination": destination_station_id,
-            "Origin": origin_station_id
+def get_arrival_times(line_id, origin_station_id, destination_station_id, verbose=False, acquity_data=None, gtd_data=None):
+    """
+    :param acquity_data: the parsed JSON from the acquity train data endpoint
+    :param gtd_data: the parsed JSON from the get_train_data endpoint
+    :returns: list of arrivals
+    """
+
+    if acquity_data is None:
+        headers = {
+            'Content-Type': 'application/json; charset=UTF-8'
         }
-    }
-    TRAINDATA_URL = 'http://12.205.200.243/AJAXTrainTracker.svc/GetAcquityTrainData'
-    result = requests.post(TRAINDATA_URL, headers=headers, data=json.dumps(payload))
+        payload = {
+            "stationRequest": {
+                "Corridor": line_id,
+                "Destination": destination_station_id,
+                "Origin": origin_station_id
+            }
+        }
+        TRAINDATA_URL = 'http://12.205.200.243/AJAXTrainTracker.svc/GetAcquityTrainData'
+        result = requests.post(TRAINDATA_URL, headers=headers, data=json.dumps(payload))
 
-    d = result.json()['d']
-    data = json.loads(d)
+        d = result.json()['d']
+        acquity_data = json.loads(d)
 
-    if verbose :
-        print 'data from %s:' % TRAINDATA_URL
-        pprint.pprint(data)
+        if verbose:
+            print 'data from %s:' % TRAINDATA_URL
+            pprint.pprint(acquity_data)
 
-    now = Internal.parse_datetime(data['responseTime'])
+    if gtd_data is None:
+        ARRIVALS_URL = 'http://metrarail.com/content/metra/en/home/jcr:content/trainTracker.get_train_data.json'
+        gtd_data = requests.get(
+            ARRIVALS_URL, params={'line': line_id.upper(), 'origin': origin_station_id, 'destination': destination_station_id}).json()
+
+        if verbose:
+            print 'data from %s:' % ARRIVALS_URL
+            pprint.pprint(gtd_data)
+
+    now = Internal.parse_datetime(acquity_data['responseTime'])
 
     def difference_greaterthan(a, b, hours):
         return abs(a - b) > datetime.timedelta(hours=hours)
 
     def build_arrival(now, train):
-        # one time I observed that KX65 showed online, but 365 showed in the station screens. What... but that is what it is. Metra, you are odd.
+        # one time I observed that KX65 showed online, but 365 showed in the
+        # station screens. What... but that is what it is. Metra, you are odd.
         r = {'estimated_dpt_time': Internal.parse_datetime(train['estimated_dpt_time']),
              'scheduled_dpt_time': Internal.parse_datetime(train['scheduled_dpt_time']),
              'as_of': now,
              'dpt_station': train['dpt_station'],
-             'train_num': int(train['train_num'].replace('KX', '3')), 
+             'train_num': int(train['train_num'].replace('KX', '3')),
              'state': train['RunState']}
         # if the train number is 0, it's not a valid prediction
         if r['train_num'] == 0:
@@ -318,27 +335,19 @@ def get_arrival_times(line_id, origin_station_id, destination_station_id, verbos
 
     arrivals = []
     arrival_bytrain = {}
-    for (k, v) in data.iteritems():
+    for (k, v) in acquity_data.iteritems():
         if k.startswith('train'):
             a = build_arrival(now, v)
             if a is not None:
                 arrivals.append(a)
                 arrival_bytrain[a['train_num']] = a
 
-    ARRIVALS_URL = 'http://metrarail.com/content/metra/en/home/jcr:content/trainTracker.get_train_data.json'
-    more_arrivals = requests.get(ARRIVALS_URL, params={'line': line_id.upper(), 'origin': origin_station_id, 'destination': destination_station_id})
-    more_arrivals = more_arrivals.json()
-
-    if verbose :
-        print 'data from %s:' % ARRIVALS_URL
-        pprint.pprint(more_arrivals)
-
-    for (k, v) in more_arrivals.iteritems():
+    for (k, v) in gtd_data.iteritems():
         if k.startswith('train'):
             if 'error' in v:
                 continue
 
-	    # see above also
+            # see above also
             train_num = int(v['train_num'].replace('KX', '3'))
             if train_num in arrival_bytrain:
                 a = arrival_bytrain[train_num]
