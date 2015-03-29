@@ -115,20 +115,21 @@ def get_lines():
     return [
         {
             'id': v[0],
-            'name': v[1]
+            'name': v[1],
+            'twitter': v[2]
         }
         for v in [
-            ('UP-N', 'Union Pacific North'),
-            ('MD-N', 'Milwaukee District North'),
-            ('NCS', 'North Central Service'),
-            ('UP-NW', 'Union Pacific Northwest'),
-            ('MD-W', 'Milwaukee District West'),
-            ('UP-W', 'Union Pacific West'),
-            ('BNSF', 'BNSF Railway'),
-            ('HC', 'Heritage Corridor'),
-            ('SWS', 'SouthWest Service'),
-            ('RI', 'Rock Island District'),
-            ('ME', 'Metra Electric District'),
+            ('BNSF', 'BNSF Railway', 'MetraBNSF'),
+            ('HC', 'Heritage Corridor', 'MetraHC'),
+            ('ME', 'Metra Electric District', 'MetraMED'),
+            ('MD-N', 'Milwaukee District North', 'MetraMDN'),
+            ('MD-W', 'Milwaukee District West', 'MetraMDW'),
+            ('NCS', 'North Central Service', 'MetraNCS'),
+            ('RI', 'Rock Island District', 'MetraRID'),
+            ('SWS', 'SouthWest Service', 'metraSWS'),
+            ('UP-N', 'Union Pacific North', 'MetraUPN'),
+            ('UP-NW', 'Union Pacific Northwest', 'MetraUPNW'),
+            ('UP-W', 'Union Pacific West', 'MetraUPW')
         ]
     ]
 
@@ -144,7 +145,7 @@ def get_stations_from_line(line_id):
 class Metra(object):
 
     def __init__(self):
-        self._lines = dict([(l['id'], Line(l['id'], l['name'])) for l in get_lines()])
+        self._lines = dict([(l['id'], Line(l['id'], l['name'], l['twitter'])) for l in get_lines()])
 
     @property
     def lines(self):
@@ -159,11 +160,19 @@ class Metra(object):
 
 class Line(object):
 
-    def __init__(self, _id, name):
+    def __init__(self, _id, name, twitter):
         self.id = _id
         self.name = name
+        self.twitter = twitter
         self._sc = None
         self._scts = None
+
+    def todict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'twitter': self.twitter
+        }
 
     def __repr__(self):
         return '%s (%s)' % (self.name, self.id)
