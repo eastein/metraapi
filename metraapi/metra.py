@@ -242,7 +242,7 @@ class Run(object):
         self.on_time = kwargs['on_time']
 
         # still no idea what this is, but we may as well pass it through
-        self.state = kwargs['state']
+        self.state = kwargs.get('state')
 
         # datetimes
         self.estimated_dpt_time = kwargs['estimated_dpt_time']
@@ -327,6 +327,10 @@ def get_arrival_times(line_id, origin_station_id, destination_station_id, verbos
             pprint.pprint(gtd_data)
 
     now = Internal.parse_datetime(acquity_data['responseTime'])
+    if now.year < 2014:
+        # in this case, the acquity endpoint is breaking and lying about when now is. It claims to
+        # be in the year 1900.
+        now = Internal.localize(datetime.datetime.utcnow())
     if verbose:
         print 'now = %s' % repr(now)
 
@@ -366,27 +370,36 @@ def get_arrival_times(line_id, origin_station_id, destination_station_id, verbos
 
             # see above also
             train_num = int(v['train_num'].replace('KX', '3'))
-            if train_num in arrival_bytrain:
-                a = arrival_bytrain[train_num]
-                a['gps'] = v['hasData']
-                a['on_time'] = not v['hasDelay']
-                a['en_route'] = not v['notDeparted']
 
-                a['scheduled_dpt_time'] = Internal.min_datetime(
-                    a.get('scheduled_dpt_time'), Internal.parse_reltime(now, v.get('scheduled_dpt_time'), v.get('schDepartInTheAM')))
-                a['estimated_dpt_time'] = Internal.min_datetime(
-                    a.get('estimated_dpt_time'), Internal.parse_reltime(now, v.get('estimated_dpt_time'), v.get('estDepartInTheAM')))
+            if train_num not in arrival_bytrain:
+                arrival_bytrain[train_num] = {
+                    'train_num': train_num,
+                    'as_of': now,
+                }
 
-                a['scheduled_arv_time'] = Internal.max_datetime(
-                    a.get('scheduled_arv_time'), Internal.parse_reltime(now, v.get('scheduled_arv_time'), v.get('schArriveInTheAM')))
-                a['estimated_arv_time'] = Internal.max_datetime(
-                    a.get('estimated_arv_time'), Internal.parse_reltime(now, v.get('estimated_arv_time'), v.get('estArriveInTheAM')))
+            a = arrival_bytrain[train_num]
+            a['gps'] = v['hasData']
+            a['on_time'] = not v['hasDelay']
+            a['en_route'] = not v['notDeparted']
 
-    for a in arrivals:
+            a['scheduled_dpt_time'] = Internal.min_datetime(
+                a.get('scheduled_dpt_time'), Internal.parse_reltime(now, v.get('scheduled_dpt_time'), v.get('schDepartInTheAM')))
+            a['estimated_dpt_time'] = Internal.min_datetime(
+                a.get('estimated_dpt_time'), Internal.parse_reltime(now, v.get('estimated_dpt_time'), v.get('estDepartInTheAM')))
+
+            a['scheduled_arv_time'] = Internal.max_datetime(
+                a.get('scheduled_arv_time'), Internal.parse_reltime(now, v.get('scheduled_arv_time'), v.get('schArriveInTheAM')))
+            a['estimated_arv_time'] = Internal.max_datetime(
+                a.get('estimated_arv_time'), Internal.parse_reltime(now, v.get('estimated_arv_time'), v.get('estArriveInTheAM')))
+
+    return_arrivals = []
+
+    for train_num, a in arrival_bytrain.items():
         for k in ['gps', 'on_time', 'en_route', 'scheduled_dpt_time', 'estimated_dpt_time', 'scheduled_arv_time', 'estimated_arv_time']:
             a[k] = a.get(k)
+        return_arrivals.append(a)
 
-    return arrivals
+    return return_arrivals
 
 if __name__ == '__main__':
     met = Metra()
