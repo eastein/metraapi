@@ -71,10 +71,14 @@ class Internal(object):
         }
 
         tomorrow = datetime.timedelta(days=1) + now
+        hour_ago = now - datetime.timedelta(hours=1)
 
         potential_times = [
-            cls.localize(datetime.datetime(year=now.year, month=now.month, day=now.day, **kw)),
-            cls.localize(datetime.datetime(year=tomorrow.year, month=tomorrow.month, day=tomorrow.day, **kw))
+            dt for dt in [
+                cls.localize(datetime.datetime(year=now.year, month=now.month, day=now.day, **kw)),
+                cls.localize(datetime.datetime(year=tomorrow.year, month=tomorrow.month, day=tomorrow.day, **kw))
+            ]
+            if dt > hour_ago
         ]
 
         potential_times.sort(cmp=lambda a, b: cmp(abs(a - now), abs(b - now)))
