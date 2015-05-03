@@ -412,7 +412,7 @@ class ArrivalTests(unittest.TestCase):
                                     u'is_modified': False,
                                     u'scheduled_dpt_time': u'/Date(1425697800000)/',
                                     u'timestamp': u'/Date(1425689047266)/',
-                                    u'train_num': u'360'}}
+                                    u'train_num': u'KX60'}}
 
         gtd_data = {u'arrivalStopName': u'Chicago OTC',
                     u'departureStopName': u'Ravenswood',
@@ -471,7 +471,7 @@ class ArrivalTests(unittest.TestCase):
                                 u'shouldHaveData': True,
                                 u'status': 1,
                                 u'timestamp': u'06:44:07pm',
-                                u'train_num': u'360',
+                                u'train_num': u'KX60',
                                 u'trip_id': u'UP-N_UN360_V1_B'},
                     u'train4': {u'bikesText': u'Yes',
                                 u'hasData': False,

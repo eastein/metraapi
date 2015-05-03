@@ -84,6 +84,19 @@ class Internal(object):
         potential_times.sort(cmp=lambda a, b: cmp(abs(a - now), abs(b - now)))
         return potential_times[0]
 
+
+    @classmethod
+    def parse_train_number(cls, train_num):
+        """
+        :param train_num: string, train number from metra rail or acquity endpoint.
+        :return: integer train number
+        """
+
+        # one time I observed that KX65 showed online, but 365 showed in the
+        # station screens. What... but that is what it is.
+
+        return int(train_num.replace('KX', '3'))
+
     @classmethod
     def jt(cls, dt):
         """Just time - turn a datetime into a string that only contains the time."""
@@ -292,7 +305,6 @@ class Run(object):
         jt = Internal.jt
         return "Train #%d %s->%s DPT @ %s (sched %s), ARV @ %s (sched %s). GPS:%s, ONTIME:%s. ENROUTE:%s. (as of %s)" % (self.train_number, self.dpt_station, self.arv_station, jt(self.estimated_dpt_time), jt(self.scheduled_dpt_time), jt(self.estimated_arv_time), jt(self.scheduled_arv_time), self.gps, self.on_time, self.en_route, jt(self.as_of))
 
-
 def get_arrival_times(line_id, origin_station_id, destination_station_id, verbose=False, acquity_data=None, gtd_data=None):
     """
     :param acquity_data: the parsed JSON from the acquity train data endpoint
@@ -344,13 +356,11 @@ def get_arrival_times(line_id, origin_station_id, destination_station_id, verbos
         return abs(a - b) > datetime.timedelta(hours=hours)
 
     def build_arrival(now, train):
-        # one time I observed that KX65 showed online, but 365 showed in the
-        # station screens. What... but that is what it is. Metra, you are odd.
         r = {'estimated_dpt_time': Internal.parse_datetime(train['estimated_dpt_time']),
              'scheduled_dpt_time': Internal.parse_datetime(train['scheduled_dpt_time']),
              'as_of': now,
              'dpt_station': train['dpt_station'],
-             'train_num': int(train['train_num'].replace('KX', '3')),
+             'train_num': Internal.parse_train_number(train['train_num']),
              'state': train['RunState']}
         # if the train number is 0, it's not a valid prediction
         if r['train_num'] == 0:
@@ -375,7 +385,7 @@ def get_arrival_times(line_id, origin_station_id, destination_station_id, verbos
                 continue
 
             # see above also
-            train_num = int(v['train_num'].replace('KX', '3'))
+            train_num = Internal.parse_train_number(v['train_num'])
 
             if train_num not in arrival_bytrain:
                 arrival_bytrain[train_num] = {
