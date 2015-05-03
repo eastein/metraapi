@@ -300,6 +300,7 @@ def get_arrival_times(line_id, origin_station_id, destination_station_id, verbos
     :returns: list of arrivals
     """
 
+    # if the acquity data isn't supplied, fetch it
     if acquity_data is None:
         headers = {
             'Content-Type': 'application/json; charset=UTF-8'
@@ -321,6 +322,7 @@ def get_arrival_times(line_id, origin_station_id, destination_station_id, verbos
             print 'data from %s:' % TRAINDATA_URL
             pprint.pprint(acquity_data)
 
+    # if the gtd data isn't supplied, fetch it
     if gtd_data is None:
         ARRIVALS_URL = 'http://metrarail.com/content/metra/en/home/jcr:content/trainTracker.get_train_data.json'
         gtd_data = requests.get(
