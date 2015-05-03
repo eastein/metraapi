@@ -85,7 +85,7 @@ class Internal(object):
         return potential_times[0]
 
     @classmethod
-    def jt(self, dt):
+    def jt(cls, dt):
         """Just time - turn a datetime into a string that only contains the time."""
         if dt is None:
             return '?'
@@ -416,7 +416,6 @@ if __name__ == '__main__':
             print "%(id)s: %(name)s" % line
         sys.exit(0)
 
-    stations = line.stations
     station_problem = False
 
     try:
@@ -429,7 +428,7 @@ if __name__ == '__main__':
         station_problem = True
 
     if station_problem:
-        for station in stations:
+        for station in line.stations:
             print station
         sys.exit(0)
 
