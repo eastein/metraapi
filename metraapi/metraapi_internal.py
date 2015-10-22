@@ -2,6 +2,7 @@ import datetime
 import json
 import re
 from pytz import timezone, utc
+from collections import OrderedDict
 
 TIME_RE = re.compile('^([0-9]+):([0-9]+)(am|pm)$')
 
@@ -69,14 +70,6 @@ class Internal(object):
         return int(train_num.replace('KX', '3'))
 
     @classmethod
-    def jt(cls, dt):
-        """Just time - turn a datetime into a string that only contains the time."""
-        if dt is None:
-            return '?'
-
-        return dt.strftime("%H:%M")
-
-    @classmethod
     def max_datetime(cls, a, b):
         return cls.cmp_datetime_core(max, a, b)
 
@@ -125,6 +118,20 @@ def get_gtd_request_parameters(line_id, origin_station_id, destination_station_i
         'url': 'http://metrarail.com/content/metra/en/home/jcr:content/trainTracker.get_train_data.json',
     }
 
+
+def get_stations_request_parameters(line_id):
+    return {
+        'url': 'http://metrarail.com/content/metra/en/home/jcr:content/trainTracker.get_stations_from_line.json',
+        'query': {
+            'trackerNumber': 0,
+            'trainLineId': line_id
+        }
+    }
+
+def interpret_stations_response(lines_data):
+    stations = json.loads(lines_data, object_pairs_hook=OrderedDict)['stations']
+
+    return [{'id': station['id'], 'name': station['name'].strip()} for station in stations.values()]
 
 def interpret_arrival_times(line_id, origin_station_id, destination_station_id, verbose=False, acquity_data=None, gtd_data=None):
     """

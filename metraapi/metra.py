@@ -1,13 +1,11 @@
 import sys
 import time
 import json
-from collections import OrderedDict
-import re
 import pprint
 
 import requests
 from metraapi.metraapi_internal import Internal, get_acquity_request_parameters, get_gtd_request_parameters, \
-    interpret_arrival_times
+    interpret_arrival_times, interpret_stations_response, get_stations_request_parameters
 
 
 class MetraException(Exception):
@@ -55,13 +53,12 @@ def get_lines():
         ]
     ]
 
-
 def get_stations_from_line(line_id):
-    result = requests.get('http://metrarail.com/content/metra/en/home/jcr:content/trainTracker.get_stations_from_line.json',
-                          params={'trackerNumber': 0, 'trainLineId': line_id})
-    stations = result.json(object_pairs_hook=OrderedDict)['stations']
+    params = get_stations_request_parameters(line_id)
 
-    return [{'id': station['id'], 'name': station['name'].strip()} for station in stations.values()]
+    lines_data = requests.get(params['url'], params=params['query']).text
+
+    return interpret_stations_response(lines_data)
 
 
 class Metra(object):
@@ -207,7 +204,14 @@ class Run(object):
         gps = LKUP[self.gps]
         on_time = LKUP2[self.on_time]
         en_route = LKUP2[self.en_route]
-        jt = metraapi.metraapi_internal.Internal.jt
+
+        def jt(dt):
+            """Just time - turn a datetime into a string that only contains the time."""
+            if dt is None:
+                return '?'
+
+            return dt.strftime("%H:%M")
+
         return "Train #%d %s->%s DPT @ %s (sched %s), ARV @ %s (sched %s). GPS:%s, ONTIME:%s. ENROUTE:%s. (as of %s)" % (self.train_number, self.dpt_station, self.arv_station, jt(self.estimated_dpt_time), jt(self.scheduled_dpt_time), jt(self.estimated_arv_time), jt(self.scheduled_arv_time), self.gps, self.on_time, self.en_route, jt(self.as_of))
 
 
