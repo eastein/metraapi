@@ -1,9 +1,18 @@
+from __future__ import absolute_import
+from __future__ import print_function
 import tornado.gen
 import tornado.httpclient
 import json
 import pprint
-import urllib
+import six
+
+if six.PY2:
+    import urllib as urllib_parse_module
+else:
+    import urllib.parse as urllib_parse_module
+
 import metraapi.metraapi_internal as intern
+
 
 def format_query_params(url, queryparams):
     """
@@ -11,7 +20,8 @@ def format_query_params(url, queryparams):
     :param queryparams: dictionary of query variables, must not be empty
     :return: formatted URL
     """
-    return '{0}?{1}'.format(url, urllib.urlencode(queryparams))
+    return '{0}?{1}'.format(url, urllib_parse_module.urlencode(queryparams))
+
 
 @tornado.gen.coroutine
 def get_arrival_times(line_id, origin_station_id, destination_station_id, verbose=False):
@@ -29,22 +39,25 @@ def get_arrival_times(line_id, origin_station_id, destination_station_id, verbos
         'gtd': g_future,
     }
 
+    print(repr(result['actuity'].body))
+
     d = json.loads(result['acquity'].body)['d']
     acquity_data = json.loads(d)
 
     if verbose:
-        print 'data from %s:' % a_params['url]']
+        print('data from %s:' % a_params['url]'])
         pprint.pprint(acquity_data)
 
     gtd_data = json.loads(result['gtd'].body)
     if verbose:
-        print 'data from %s:' % g_params['url']
+        print('data from %s:' % g_params['url'])
         pprint.pprint(gtd_data)
 
     interpreted_results = intern.interpret_arrival_times(line_id, origin_station_id, destination_station_id,
-                                   acquity_data=acquity_data,gtd_data=gtd_data)
+                                                         acquity_data=acquity_data, gtd_data=gtd_data)
 
     raise tornado.gen.Return(interpreted_results)
+
 
 @tornado.gen.coroutine
 def get_stations_from_line(line_id):

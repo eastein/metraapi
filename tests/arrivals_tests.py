@@ -546,9 +546,9 @@ class ArrivalTests(unittest.TestCase):
             'UP-N', 'RAVENSWOOD', 'OTC', acquity_data=acquity_data, gtd_data=gtd_data)
         self.assertGreaterEqual(len(arrivals), 3)
 
-        train_356 = filter(lambda a: a['train_num'] == 356, arrivals)[0]
-        train_358 = filter(lambda a: a['train_num'] == 358, arrivals)[0]
-        train_360 = filter(lambda a: a['train_num'] == 360, arrivals)[0]
+        train_356 = list(filter(lambda a: a['train_num'] == 356, arrivals))[0]
+        train_358 = list(filter(lambda a: a['train_num'] == 358, arrivals))[0]
+        train_360 = list(filter(lambda a: a['train_num'] == 360, arrivals))[0]
 
         self.assertTrue(train_356['gps'])
         self.assertEquals(train_356['train_num'], 356)

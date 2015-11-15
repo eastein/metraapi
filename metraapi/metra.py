@@ -1,3 +1,5 @@
+from __future__ import absolute_import
+from __future__ import print_function
 import sys
 import time
 import json
@@ -52,6 +54,7 @@ def get_lines():
             ('UP-W', 'Union Pacific West', 'MetraUPW')
         ]
     ]
+
 
 def get_stations_from_line(line_id):
     params = get_stations_request_parameters(line_id)
@@ -190,6 +193,12 @@ class Run(object):
 
         return cmp(self.dpt_time, o.dpt_time)
 
+    def __lt__(self, o):
+        if type(self) != type(o):
+            return False
+
+        return self.dpt_time < o.dpt_time
+
     def __repr__(self):
         LKUP = {
             True: "ON",
@@ -226,20 +235,19 @@ def get_arrival_times(line_id, origin_station_id, destination_station_id, verbos
     acquity_data = json.loads(d)
 
     if verbose:
-        print 'data from %s:' % params['url]']
+        print('data from %s:' % params['url]'])
         pprint.pprint(acquity_data)
-
 
     # gtd request
     params = get_gtd_request_parameters(line_id, origin_station_id, destination_station_id)
     gtd_data = requests.get(params['url'], params=params['query']).json()
 
     if verbose:
-        print 'data from %s:' % params['url']
+        print('data from %s:' % params['url'])
         pprint.pprint(gtd_data)
 
     return interpret_arrival_times(line_id, origin_station_id, destination_station_id,
-                                   acquity_data=acquity_data,gtd_data=gtd_data)
+                                   acquity_data=acquity_data, gtd_data=gtd_data)
 
 
 if __name__ == '__main__':
@@ -250,7 +258,7 @@ if __name__ == '__main__':
     except IndexError:
         lines = get_lines()
         for line in lines:
-            print "%(id)s: %(name)s" % line
+            print("%(id)s: %(name)s" % line)
         sys.exit(0)
 
     station_problem = False
@@ -261,19 +269,19 @@ if __name__ == '__main__':
     except IndexError:
         station_problem = True
     except InvalidStationException:
-        print 'One or more of the requested stations is not valid. Valid stations:'
+        print('One or more of the requested stations is not valid. Valid stations:')
         station_problem = True
 
     if station_problem:
         for station in line.stations:
-            print station
+            print(station)
         sys.exit(0)
 
     runs = dpt.runs_to(arv)
 
     if not runs:
-        print 'There are no trains presently.'
+        print('There are no trains presently.')
         sys.exit(0)
 
     for run in runs:
-        print run
+        print(run)

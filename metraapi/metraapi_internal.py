@@ -1,10 +1,14 @@
+from __future__ import absolute_import
+from __future__ import print_function
 import datetime
 import json
 import re
 from pytz import timezone, utc
 from collections import OrderedDict
+import six
 
 TIME_RE = re.compile('^([0-9]+):([0-9]+)(am|pm)$')
+
 
 class Internal(object):
     CHICAGOTIME = timezone('US/Central')
@@ -53,9 +57,19 @@ class Internal(object):
             if dt > hour_ago
         ]
 
-        potential_times.sort(cmp=lambda a, b: cmp(abs(a - now), abs(b - now)))
-        return potential_times[0]
+        chosen_time = None
+        chosen_diff = None
 
+        for potential_time in potential_times:
+            diff = abs(potential_time - now)
+            if chosen_diff is None:
+                chosen_diff = diff
+                chosen_time = potential_time
+            elif diff < chosen_diff:
+                chosen_diff = diff
+                chosen_time = potential_time
+
+        return chosen_time
 
     @classmethod
     def parse_train_number(cls, train_num):
@@ -83,6 +97,8 @@ class Internal(object):
             return b
         elif a is not None and b is None:
             return a
+        elif a is None and b is None:
+            return None
         return f(a, b)
 
     @classmethod
@@ -128,10 +144,15 @@ def get_stations_request_parameters(line_id):
         }
     }
 
+
 def interpret_stations_response(lines_data):
+    if not isinstance(lines_data, six.text_type):
+        lines_data = lines_data.decode('utf8')
+
     stations = json.loads(lines_data, object_pairs_hook=OrderedDict)['stations']
 
-    return [{'id': station['id'], 'name': station['name'].strip()} for station in stations.values()]
+    return [{'id': station['id'], 'name': station['name'].strip()} for station in list(stations.values())]
+
 
 def interpret_arrival_times(line_id, origin_station_id, destination_station_id, verbose=False, acquity_data=None, gtd_data=None):
     """
@@ -147,7 +168,7 @@ def interpret_arrival_times(line_id, origin_station_id, destination_station_id, 
         now = Internal.localize(datetime.datetime.utcnow())
 
     if verbose:
-        print 'now = %s' % repr(now)
+        print('now = %s' % repr(now))
 
     def difference_greaterthan(a, b, hours):
         return abs(a - b) > datetime.timedelta(hours=hours)
@@ -169,14 +190,14 @@ def interpret_arrival_times(line_id, origin_station_id, destination_station_id, 
 
     arrivals = []
     arrival_bytrain = {}
-    for (k, v) in acquity_data.iteritems():
+    for (k, v) in six.iteritems(acquity_data):
         if k.startswith('train'):
             a = build_arrival(now, v)
             if a is not None:
                 arrivals.append(a)
                 arrival_bytrain[a['train_num']] = a
 
-    for (k, v) in gtd_data.iteritems():
+    for (k, v) in six.iteritems(gtd_data):
         if k.startswith('train'):
             if 'error' in v:
                 continue
@@ -196,18 +217,42 @@ def interpret_arrival_times(line_id, origin_station_id, destination_station_id, 
             a['en_route'] = not v['notDeparted']
 
             a['scheduled_dpt_time'] = Internal.min_datetime(
-                a.get('scheduled_dpt_time'), Internal.parse_reltime(now, v.get('scheduled_dpt_time'), v.get('schDepartInTheAM')))
+                a.get('scheduled_dpt_time'),
+                Internal.parse_reltime(
+                    now,
+                    v.get('scheduled_dpt_time'),
+                    v.get('schDepartInTheAM')
+                )
+            )
             a['estimated_dpt_time'] = Internal.min_datetime(
-                a.get('estimated_dpt_time'), Internal.parse_reltime(now, v.get('estimated_dpt_time'), v.get('estDepartInTheAM')))
+                a.get('estimated_dpt_time'),
+                Internal.parse_reltime(
+                    now,
+                    v.get('estimated_dpt_time'),
+                    v.get('estDepartInTheAM')
+                )
+            )
 
             a['scheduled_arv_time'] = Internal.max_datetime(
-                a.get('scheduled_arv_time'), Internal.parse_reltime(now, v.get('scheduled_arv_time'), v.get('schArriveInTheAM')))
+                a.get('scheduled_arv_time'),
+                Internal.parse_reltime(
+                    now,
+                    v.get('scheduled_arv_time'),
+                    v.get('schArriveInTheAM')
+                )
+            )
             a['estimated_arv_time'] = Internal.max_datetime(
-                a.get('estimated_arv_time'), Internal.parse_reltime(now, v.get('estimated_arv_time'), v.get('estArriveInTheAM')))
+                a.get('estimated_arv_time'),
+                Internal.parse_reltime(
+                    now,
+                    v.get('estimated_arv_time'),
+                    v.get('estArriveInTheAM')
+                )
+            )
 
     return_arrivals = []
 
-    for train_num, a in arrival_bytrain.items():
+    for train_num, a in list(arrival_bytrain.items()):
         for k in ['gps', 'on_time', 'en_route', 'scheduled_dpt_time', 'estimated_dpt_time', 'scheduled_arv_time', 'estimated_arv_time']:
             a[k] = a.get(k)
         return_arrivals.append(a)
