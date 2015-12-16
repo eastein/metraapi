@@ -4,7 +4,14 @@ from __future__ import print_function
 import sys
 import time
 import json
+import base64
 import pprint
+
+import weakref
+import threading
+import bisect
+import functools
+import types
 
 import requests
 
@@ -34,9 +41,96 @@ class InvalidLineException(MetraException):
     """The line requested does not exist."""
 
 
-STATIONS_CACHETIME = 60.0
+@functools.total_ordering
+class CacheEntry(object):
+
+    def __init__(self, value, expire_deadline):
+        self.value = value
+        self.expire_deadline = expire_deadline
+
+    def __lt__(self, other):
+        return self.expire_deadline < other.expire_deadline
+
+    def __eq__(self, other):
+        return self.expire_deadline == other.expire_deadline
 
 
+class Cache(object):
+
+    class TTL(object):
+        LINES = 3600.0
+        STATIONS = 300.0
+        ARRIVALS = 5.0
+
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.cache_lookup = weakref.WeakValueDictionary()
+        self.cache_expire_queue = list()
+
+    def insert(self, cache_key, value, now, ttl):
+        with self.lock:
+            if cache_key not in self.cache_lookup:
+                entry = CacheEntry(value, now + ttl)
+                bisect.insort_right(self.cache_expire_queue, entry)
+                self.cache_lookup[cache_key] = entry
+            else:
+                # TODO it might be nice to re-up the TTL, it'll still expire
+                # at the old time as of now.
+                self.cache_lookup[cache_key].value = value
+
+    def get(self, cache_key, now):
+        self.do_expires(now)
+        entry = self.cache_lookup.get(cache_key)
+        if entry is not None:
+            if entry.expire_deadline < now:
+                return None
+            return entry
+
+    def do_expires(self, now):
+        with self.lock:
+            i = 0
+            for e in self.cache_expire_queue:
+                if e.expire_deadline > now:
+                    break
+                i += 1
+
+            if i > 0:
+                self.cache_expire_queue = self.cache_expire_queue[i:]
+
+    @classmethod
+    def get_function_identifier(cls, f):
+        if isinstance(f, types.FunctionType):
+            return '%s.%s' % (f.__module__, f.__name__)
+        elif isinstance(f, types.MethodType):
+            f_key = '%s.%s.%s' % (f.im_class.__module__, f.im_class, f.__name__)
+        else:
+            return f.__name__
+
+    def cached(self, ttl):
+        def decorate(f):
+            @functools.wraps(f)
+            def inner(*a, **kw):
+                function_identifier = self.get_function_identifier(f)
+                cache_key = base64.b64encode(json.dumps([function_identifier, a, kw]))
+                now = time.time()
+
+                cache_entry = self.get(cache_key, now)
+                if cache_entry is None:
+                    #print('cache miss for %s' % function_identifier)
+                    v = f(*a, **kw)
+                    self.insert(cache_key, v, now, ttl)
+                    return v
+                else:
+                    #print('cache hit for %s' % function_identifier)
+                    return cache_entry.value
+
+            return inner
+        return decorate
+
+cache = Cache()
+
+
+@cache.cached(Cache.TTL.LINES)
 def get_lines(hard_code=False):
     if hard_code:
         lines_data = json.dumps([
@@ -66,6 +160,7 @@ def get_lines(hard_code=False):
     return internal.interpret_lines_response(lines_data)
 
 
+@cache.cached(Cache.TTL.STATIONS)
 def get_stations_from_line(line_id):
     params = internal.get_stations_request_parameters(line_id)
 
@@ -74,20 +169,31 @@ def get_stations_from_line(line_id):
     return internal.interpret_stations_response(stations_data)
 
 
-class Metra(object):
+@cache.cached(Cache.TTL.STATIONS)
+def get_station_objects(line_id):
+    return [Station(line_id, s['id'], s['name']) for s in get_stations_from_line(line_id)]
 
-    def __init__(self):
-        self._lines = dict([(l['id'], Line(l['id'], l['name'], l['twitter'])) for l in get_lines()])
+
+@cache.cached(Cache.TTL.LINES)
+def get_line_objects():
+    return dict([(l['id'], Line(l['id'], l['name'], l['twitter'])) for l in get_lines()])
+
+
+def get_line_object(line_id):
+    l = get_line_objects().get(line_id)
+    if l is None:
+        raise InvalidLineException
+    return l
+
+
+class Metra(object):
 
     @property
     def lines(self):
-        return self._lines
+        return get_line_objects()
 
     def line(self, line_id):
-        if line_id not in self._lines:
-            raise InvalidLineException
-
-        return self._lines[line_id]
+        return get_line_object(line_id)
 
 
 class Line(object):
@@ -96,8 +202,6 @@ class Line(object):
         self.id = _id
         self.name = name
         self.twitter = twitter
-        self._sc = None
-        self._scts = None
 
     def todict(self):
         return {
@@ -114,13 +218,7 @@ class Line(object):
 
     @property
     def stations(self):
-        now = time.time()
-
-        if (self._sc is None) or (self._scts < (now - STATIONS_CACHETIME)):
-            self._scts = now
-            self._sc = [Station(self, s['id'], s['name']) for s in get_stations_from_line(self.id)]
-
-        return self._sc
+        return get_station_objects(self.id)
 
     def station(self, station_id):
         for station in self.stations:
@@ -131,10 +229,14 @@ class Line(object):
 
 class Station(object):
 
-    def __init__(self, line, _id, name):
-        self.line = line
+    def __init__(self, line_id, _id, name):
+        self.line_id = line_id
         self.id = _id
         self.name = name
+
+    @property
+    def line(self):
+        return get_line_object(self.line_id)
 
     def __eq__(self, o):
         return (type(self) == type(o)) and (self.id == o.id)
@@ -234,6 +336,7 @@ class Run(object):
         return "Train #%d %s->%s DPT @ %s (sched %s), ARV @ %s (sched %s). GPS:%s, ONTIME:%s. ENROUTE:%s. (as of %s)" % (self.train_number, self.dpt_station, self.arv_station, jt(self.estimated_dpt_time), jt(self.scheduled_dpt_time), jt(self.estimated_arv_time), jt(self.scheduled_arv_time), self.gps, self.on_time, self.en_route, jt(self.as_of))
 
 
+@cache.cached(Cache.TTL.ARRIVALS)
 def get_arrival_times(line_id, origin_station_id, destination_station_id, verbose=False):
 
     # acquity request
@@ -264,7 +367,7 @@ if __name__ == '__main__':
     met = Metra()
 
     try:
-        line = met.lines[sys.argv[1]]
+        line = met.line(sys.argv[1])
     except IndexError:
         for line in met.lines.values():
             print('%s%s%s' % (line.id.ljust(6), line.name.ljust(25), line.twitter))
