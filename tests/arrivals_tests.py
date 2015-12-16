@@ -1,6 +1,7 @@
 import datetime
 import pytz
 import metraapi.metra
+import metraapi.metraapi_internal
 import unittest
 import nose.exc
 
@@ -542,7 +543,7 @@ class ArrivalTests(unittest.TestCase):
                                 u'train_num': u'368',
                                 u'trip_id': u'UP-N_UN368_V1_B'}}
 
-        arrivals = metraapi.metra.interpret_arrival_times(
+        arrivals = metraapi.metraapi_internal.interpret_arrival_times(
             'UP-N', 'RAVENSWOOD', 'OTC', acquity_data=acquity_data, gtd_data=gtd_data)
         self.assertGreaterEqual(len(arrivals), 3)
 
@@ -664,7 +665,7 @@ class ArrivalTests(unittest.TestCase):
                                 u'train_num': u'301',
                                 u'trip_id': u'UP-N_UN301_V1_F'}}
         now = datetime.datetime(2015, 4, 13, 20, 37, 48, tzinfo=pytz.timezone('US/Central'))
-        arrivals = metraapi.metra.interpret_arrival_times(
+        arrivals = metraapi.metraapi_internal.interpret_arrival_times(
             'UP-N', 'OTC', 'RAVENSWOOD', acquity_data=acquity_data, gtd_data=gtd_data)
 
         self.assertEquals(len(arrivals), 4)

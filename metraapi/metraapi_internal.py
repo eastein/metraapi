@@ -145,6 +145,14 @@ def get_stations_request_parameters(line_id):
     }
 
 
+def get_lines_request_parameters():
+    return {
+        'url': 'http://goroo.com/getRealTimeMetraRoutes.htm',
+        'query': {
+        }
+    }
+
+
 def interpret_stations_response(lines_data):
     if not isinstance(lines_data, six.text_type):
         lines_data = lines_data.decode('utf8')
@@ -258,3 +266,45 @@ def interpret_arrival_times(line_id, origin_station_id, destination_station_id, 
         return_arrivals.append(a)
 
     return return_arrivals
+
+
+def interpret_lines_response(lines_data):
+    lines = json.loads(lines_data)
+
+    twitters = {
+        'BNSF': 'MetraBNSF',
+        'HC':   'MetraHC',
+        'ME':   'MetraMED',
+        'MD-N': 'MetraMDN',
+        'MD-W': 'MetraMDW',
+        'NCS': 'MetraNCS',
+        'RI': 'MetraRID',
+        'SWS': 'metraSWS',
+        'UP-N': 'MetraUPN',
+        'UP-NW': 'MetraUPNW',
+        'UP-W':  'MetraUPW',
+    }
+
+    def shorten_line_name(text):
+        remove_start = 'Metra'
+        remove_end = 'Line'
+
+        if text.endswith(remove_end):
+            text = text[:-len(remove_end)]
+
+        words_left = len([s for s in text.split(' ') if s])
+
+        # only strip off the "Metra" if there are at least 3 words.
+        if words_left > 2 and text.startswith(remove_start):
+            text = text[len(remove_start):]
+
+        return text.strip()
+
+    return [
+        {
+            'id': line['id'],
+            'name': shorten_line_name(line['text']),
+            'twitter': twitters.get(line['id'])
+        }
+        for line in lines
+    ]

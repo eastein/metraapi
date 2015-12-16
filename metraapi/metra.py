@@ -1,13 +1,17 @@
 from __future__ import absolute_import
 from __future__ import print_function
+
 import sys
 import time
 import json
 import pprint
 
 import requests
-from metraapi.metraapi_internal import Internal, get_acquity_request_parameters, get_gtd_request_parameters, \
-    interpret_arrival_times, interpret_stations_response, get_stations_request_parameters
+
+# from .metraapi_internal import Internal, , \
+#    ,
+
+from . import metraapi_internal as internal
 
 
 class MetraException(Exception):
@@ -33,35 +37,41 @@ class InvalidLineException(MetraException):
 STATIONS_CACHETIME = 60.0
 
 
-def get_lines():
-    return [
-        {
-            'id': v[0],
-            'name': v[1],
-            'twitter': v[2]
-        }
-        for v in [
-            ('BNSF', 'BNSF Railway', 'MetraBNSF'),
-            ('HC', 'Heritage Corridor', 'MetraHC'),
-            ('ME', 'Metra Electric District', 'MetraMED'),
-            ('MD-N', 'Milwaukee District North', 'MetraMDN'),
-            ('MD-W', 'Milwaukee District West', 'MetraMDW'),
-            ('NCS', 'North Central Service', 'MetraNCS'),
-            ('RI', 'Rock Island District', 'MetraRID'),
-            ('SWS', 'SouthWest Service', 'metraSWS'),
-            ('UP-N', 'Union Pacific North', 'MetraUPN'),
-            ('UP-NW', 'Union Pacific Northwest', 'MetraUPNW'),
-            ('UP-W', 'Union Pacific West', 'MetraUPW')
-        ]
-    ]
+def get_lines(hard_code=False):
+    if hard_code:
+        lines_data = json.dumps([
+            {
+                'id': line_id,
+                'text': line_name,
+            }
+            for (line_id, line_name) in [
+                ('BNSF', 'BNSF Railway'),
+                ('HC', 'Heritage Corridor'),
+                ('ME', 'Metra Electric District'),
+                ('MD-N', 'Milwaukee District North'),
+                ('MD-W', 'Milwaukee District West'),
+                ('NCS', 'North Central Service'),
+                ('RI', 'Rock Island District'),
+                ('SWS', 'South West Service'),
+                ('UP-N', 'Union Pacific North'),
+                ('UP-NW', 'Union Pacific Northwest'),
+                ('UP-W', 'Union Pacific West')
+            ]
+        ])
+    else:
+        params = internal.get_lines_request_parameters()
+
+        lines_data = requests.get(params['url'], params=params['query']).text
+
+    return internal.interpret_lines_response(lines_data)
 
 
 def get_stations_from_line(line_id):
-    params = get_stations_request_parameters(line_id)
+    params = internal.get_stations_request_parameters(line_id)
 
-    lines_data = requests.get(params['url'], params=params['query']).text
+    stations_data = requests.get(params['url'], params=params['query']).text
 
-    return interpret_stations_response(lines_data)
+    return internal.interpret_stations_response(stations_data)
 
 
 class Metra(object):
@@ -227,7 +237,7 @@ class Run(object):
 def get_arrival_times(line_id, origin_station_id, destination_station_id, verbose=False):
 
     # acquity request
-    params = get_acquity_request_parameters(line_id, origin_station_id, destination_station_id)
+    params = internal.get_acquity_request_parameters(line_id, origin_station_id, destination_station_id)
 
     result = requests.post(params['url'], headers=params['headers'], data=params['payload'])
 
@@ -239,15 +249,15 @@ def get_arrival_times(line_id, origin_station_id, destination_station_id, verbos
         pprint.pprint(acquity_data)
 
     # gtd request
-    params = get_gtd_request_parameters(line_id, origin_station_id, destination_station_id)
+    params = internal.get_gtd_request_parameters(line_id, origin_station_id, destination_station_id)
     gtd_data = requests.get(params['url'], params=params['query']).json()
 
     if verbose:
         print('data from %s:' % params['url'])
         pprint.pprint(gtd_data)
 
-    return interpret_arrival_times(line_id, origin_station_id, destination_station_id,
-                                   acquity_data=acquity_data, gtd_data=gtd_data)
+    return internal.interpret_arrival_times(line_id, origin_station_id, destination_station_id,
+                                            acquity_data=acquity_data, gtd_data=gtd_data)
 
 
 if __name__ == '__main__':
@@ -256,9 +266,8 @@ if __name__ == '__main__':
     try:
         line = met.lines[sys.argv[1]]
     except IndexError:
-        lines = get_lines()
-        for line in lines:
-            print("%(id)s: %(name)s" % line)
+        for line in met.lines.values():
+            print('%s%s%s' % (line.id.ljust(6), line.name.ljust(25), line.twitter))
         sys.exit(0)
 
     station_problem = False
