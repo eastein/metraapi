@@ -2,9 +2,9 @@ from distutils.core import setup
 
 setup(
     name='metraapi',
-    version='0.1.0',
+    version='0.1.1',
     author='Ian Dees, Eric Stein',
-    author_email='ian.dees@gmail.com',
+    author_email='toba@des.truct.org',
     packages=['metraapi'],
     url='https://github.com/eastein/metraapi',
     license='LICENSE',
