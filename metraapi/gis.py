@@ -1,3 +1,4 @@
+import os
 import threading
 import re
 import itertools
@@ -29,7 +30,7 @@ class Station(object):
 class Stations(object):
     STATION_DATA = None
     LOAD_LOCK = threading.Lock()
-    DATA_SOURCE = 'exported_layer.csv'
+    DATA_SOURCE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'MetraStations.csv')
 
     @classmethod
     def load_station_data(cls):

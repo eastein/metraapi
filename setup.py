@@ -6,6 +6,9 @@ setup(
     author='Ian Dees, Eric Stein',
     author_email='toba@des.truct.org',
     packages=['metraapi'],
+    package_data={
+        '': ['*.csv'],
+    },
     url='https://github.com/eastein/metraapi',
     license='LICENSE',
     description='Wrapper for the Metra real time arrivals data.',
