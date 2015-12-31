@@ -159,7 +159,13 @@ def interpret_stations_response(lines_data):
 
     stations = json.loads(lines_data, object_pairs_hook=OrderedDict)['stations']
 
-    return [{'id': station['id'], 'name': station['name'].strip()} for station in list(stations.values())]
+    return [
+        {
+            'id': station['id'],
+            'name': station['name'].strip()
+        }
+        for station in list(stations.values())
+    ]
 
 
 def interpret_arrival_times(line_id, origin_station_id, destination_station_id, verbose=False, acquity_data=None, gtd_data=None):

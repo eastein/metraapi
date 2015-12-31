@@ -19,6 +19,7 @@ import requests
 #    ,
 
 from . import metraapi_internal as internal
+import metraapi.gis
 
 
 class MetraException(Exception):
@@ -61,6 +62,7 @@ class Cache(object):
         LINES = 3600.0
         STATIONS = 300.0
         ARRIVALS = 5.0
+        GIS_DATA = 3600.0 * 24 * 7
 
     def __init__(self):
         self.lock = threading.Lock()
@@ -169,9 +171,17 @@ def get_stations_from_line(line_id):
     return internal.interpret_stations_response(stations_data)
 
 
+@cache.cached(Cache.TTL.GIS_DATA)
+def find_gis_station(long_name):
+    return metraapi.gis.Stations.find_station(long_name)
+
+
 @cache.cached(Cache.TTL.STATIONS)
 def get_station_objects(line_id):
-    return [Station(line_id, s['id'], s['name']) for s in get_stations_from_line(line_id)]
+    return [
+        Station(line_id, s['id'], s['name'], gis_station=find_gis_station(s['name']))
+        for s in get_stations_from_line(line_id)
+    ]
 
 
 @cache.cached(Cache.TTL.LINES)
@@ -227,16 +237,44 @@ class Line(object):
         raise InvalidStationException
 
 
+def gis_accessor(fields):
+    def dec(f):
+        @functools.wraps(f)
+        def inner(*a, **kw):
+            gis_station = f(*a, **kw)
+            if gis_station is not None:
+                return dict([
+                    (field, getattr(gis_station, field))
+                    for field in fields
+                ])
+        return inner
+    return dec
+
+
 class Station(object):
 
-    def __init__(self, line_id, _id, name):
+    def __init__(self, line_id, _id, name, gis_station=None):
         self.line_id = line_id
         self.id = _id
         self.name = name
+        self.gis_station = gis_station
 
     @property
     def line(self):
         return get_line_object(self.line_id)
+
+    @property
+    @gis_accessor(['latitude', 'longitude', 'municipality', 'address'])
+    def location(self):
+        return self.gis_station
+
+    @property
+    def fare_zone(self):
+        return self.gis_station.fare_zone
+
+    @property
+    def bike_parking(self):
+        return self.gis_station.bike_parking
 
     def __eq__(self, o):
         return (type(self) == type(o)) and (self.id == o.id)
