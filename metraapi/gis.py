@@ -3,7 +3,7 @@ import threading
 import re
 import itertools
 import csv
-import utility_funcs
+import metraapi.utility_funcs as utility_funcs
 
 
 class Station(object):

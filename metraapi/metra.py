@@ -113,7 +113,7 @@ class Cache(object):
             @functools.wraps(f)
             def inner(*a, **kw):
                 function_identifier = self.get_function_identifier(f)
-                cache_key = base64.b64encode(json.dumps([function_identifier, a, kw]))
+                cache_key = base64.b64encode(json.dumps([function_identifier, a, kw]).encode('utf-8'))
                 now = time.time()
 
                 cache_entry = self.get(cache_key, now)
