@@ -7,7 +7,7 @@ setup(
     author_email='toba@des.truct.org',
     packages=['metraapi'],
     package_data={
-        '': ['*.csv'],
+        '': ['*.csv', '*.zip'],
     },
     url='https://github.com/eastein/metraapi',
     license='LICENSE',

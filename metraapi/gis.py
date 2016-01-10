@@ -52,8 +52,8 @@ class Stations(object):
 
     @classmethod
     def get_line_name_index(cls):
-        if cls.LINE_NAME_INDEX is None:
-            with cls.INDEX_LOCK:
+        with cls.INDEX_LOCK:
+            if cls.LINE_NAME_INDEX is None:
                 lni = {}
                 for station in cls.get_station_data():
                     for line in station.lines:
@@ -65,8 +65,8 @@ class Stations(object):
 
     @classmethod
     def get_station_data(cls):
-        if cls.STATION_DATA is None:
-            with cls.LOAD_LOCK:
+        with cls.LOAD_LOCK:
+            if cls.STATION_DATA is None:
                 station_data = []
 
                 reader = csv.DictReader(open(cls.DATA_SOURCE))
@@ -103,7 +103,7 @@ class Stations(object):
 
                     station_data.append(station_object)
 
-            cls.STATION_DATA = station_data
+                cls.STATION_DATA = station_data
 
         return cls.STATION_DATA
 
@@ -134,23 +134,44 @@ class Stations(object):
         ]
 
     @classmethod
-    def find_station(cls, name):
+    def geographic_test(cls, station_object, geographic_filter):
+        if geographic_filter is None:
+            return True
+
+        dist = utility_funcs.distance((station_object.latitude, station_object.longitude),
+                                      (geographic_filter['latitude'], geographic_filter['longitude']))
+
+        acceptable = dist <= geographic_filter['distance_km']
+
+        return acceptable
+
+    @classmethod
+    def find_station(cls, name, geographic_filter=None):
         normalized_needle = cls.normalize_for_compare(name)
-        needle_len = len(normalized_needle)
 
-        ret = None
-        min_metric = 10000
-
-
+        matches = []
         for line, station_idx in cls.get_line_name_index().items():
             # TODO linefilter: don't inspect stations from other lines.
             # right now we are checking all lines because it's not a parameter
             # and we haven't normalized between the GIS line names and the ones from the API
             station_obj = station_idx.get(normalized_needle)
             if station_obj is not None:
-                return station_obj
+                matches.append(station_obj)
+
+        if len(matches) == 1:
+            if cls.geographic_test(matches[0], geographic_filter):
+                return matches[0]
+
+        needle_len = len(normalized_needle)
+
+        ret = None
+        min_metric = None
 
         for station in cls.get_station_data():
+            # out of range. Abort.
+            if not cls.geographic_test(station, geographic_filter):
+                continue
+
             # TODO linefilter: don't inspect stations from other lines. There are situations like Lake Forest where
             # the same name is used on multiple lines for separate stations.
 
@@ -159,7 +180,7 @@ class Stations(object):
             smaller_len = min(needle_len, haystack_len)
 
             for permuted_normalized_haystack in station.permuted_normalized_name:
-                if permuted_normalized_haystack == permuted_normalized_haystack:
+                if permuted_normalized_haystack == normalized_needle:
                     return station
 
                 lcs = utility_funcs.longest_common_substring(permuted_normalized_haystack, normalized_needle)
@@ -176,7 +197,7 @@ class Stations(object):
 
                 metric = levenshtein_dist - lcs_len
 
-                if metric < min_metric:
+                if min_metric is None or metric < min_metric:
                     min_metric = metric
                     ret = station
 

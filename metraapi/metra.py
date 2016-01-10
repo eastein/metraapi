@@ -20,6 +20,7 @@ import requests
 
 from . import metraapi_internal as internal
 import metraapi.gis
+import metraapi.gtfs
 
 
 class MetraException(Exception):
@@ -63,6 +64,7 @@ class Cache(object):
         STATIONS = 300.0
         ARRIVALS = 5.0
         GIS_DATA = 3600.0 * 24 * 7
+        GTFS_DATA = 3600.0 * 24 * 7
 
     def __init__(self):
         self.lock = threading.Lock()
@@ -172,14 +174,19 @@ def get_stations_from_line(line_id):
 
 
 @cache.cached(Cache.TTL.GIS_DATA)
-def find_gis_station(long_name):
-    return metraapi.gis.Stations.find_station(long_name)
+def find_gis_station(long_name, geographic_filter=None):
+    return metraapi.gis.Stations.find_station(long_name, geographic_filter=geographic_filter)
+
+
+@cache.cached(Cache.TTL.GTFS_DATA)
+def find_gtfs_stop(stop_id):
+    return metraapi.gtfs.MetraGTFS.get_stop(stop_id)
 
 
 @cache.cached(Cache.TTL.STATIONS)
 def get_station_objects(line_id):
     return [
-        Station(line_id, s['id'], s['name'], gis_station=find_gis_station(s['name']))
+        Station(line_id, s['id'], s['name'])
         for s in get_stations_from_line(line_id)
     ]
 
@@ -237,36 +244,81 @@ class Line(object):
         raise InvalidStationException
 
 
-def gis_accessor(fields):
+def ref_accessor(attr, getter):
     def dec(f):
         @functools.wraps(f)
-        def inner(*a, **kw):
-            gis_station = f(*a, **kw)
-            if gis_station is not None:
-                return dict([
-                    (field, getattr(gis_station, field))
-                    for field in fields
-                ])
+        def inner(self, *a, **kw):
+            fields = f(self, *a, **kw)
+            attr_object = getattr(self, attr)
+
+            def field_transform(field):
+                if isinstance(field, tuple):
+                    return field
+                else:
+                    return (field, field)
+
+            if attr_object is not None:
+                if isinstance(fields, list):
+                    return dict([
+                        (field_to, getter(attr_object, field_from))
+                        for
+                        (field_from, field_to) in [field_transform(field) for field in fields]
+                    ])
+                else:
+                    return getter(attr_object, fields)
         return inner
     return dec
 
 
 class Station(object):
 
-    def __init__(self, line_id, _id, name, gis_station=None):
+    def __init__(self, line_id, _id, name):
         self.line_id = line_id
         self.id = _id
         self.name = name
-        self.gis_station = gis_station
 
     @property
     def line(self):
         return get_line_object(self.line_id)
 
     @property
-    @gis_accessor(['latitude', 'longitude', 'municipality', 'address'])
+    def gtfs_stop(self):
+        return find_gtfs_stop(self.id)
+
+    @property
+    @ref_accessor('gtfs_stop', dict.get)
+    def wheelchair_boarding(self):
+        return 'wheelchair_boarding'
+
+    @property
+    @ref_accessor('gtfs_stop', dict.get)
+    def url(self):
+        return 'stop_url'
+
+    @property
+    @ref_accessor('gtfs_stop', dict.get)
+    def coordinates(self):
+        return [
+            ('stop_lat', 'latitude'),
+            ('stop_lon', 'longitude')
+        ]
+
+    @property
+    def gis_station(self):
+        coords = self.coordinates
+        if coords is None:
+            return find_gis_station(self.name)
+        else:
+            return find_gis_station(self.name, geographic_filter={
+                'latitude': coords['latitude'],
+                'longitude': coords['longitude'],
+                'distance_km': 1.0,
+            })
+
+    @property
+    @ref_accessor('gis_station', getattr)
     def location(self):
-        return self.gis_station
+        return ['latitude', 'longitude', 'municipality', 'address']
 
     @property
     def fare_zone(self):
@@ -412,19 +464,42 @@ if __name__ == '__main__':
         sys.exit(0)
 
     station_problem = False
-
+    insufficient_stations = False
+    dpt = None
     try:
         dpt = line.station(sys.argv[2].upper())
         arv = line.station(sys.argv[3].upper())
     except IndexError:
         station_problem = True
+        insufficient_stations = True
     except InvalidStationException:
         print('One or more of the requested stations is not valid. Valid stations:')
         station_problem = True
 
     if station_problem:
-        for station in line.stations:
-            print(station)
+        if insufficient_stations and dpt is not None:
+            print('Station Info %s (%s)' % (dpt.id, line.id))
+            print('')
+            print(' ID:                  %s' % dpt.id)
+            print(' Name:                %s' % dpt.name)
+            print(' Fare Zone:           %s' % dpt.fare_zone)
+            print(' Wheelchair Boarding: %s' % dpt.wheelchair_boarding)
+            print(' Bike parking spots:  %s' % dpt.bike_parking)
+
+            loc = dpt.location
+            if loc is None:
+                print(' Location:             Unknown')
+            else:
+                print(' Location:')
+                print('   Latitude:           %0.8f' % loc['latitude'])
+                print('   Longitude:          %0.8f' % loc['longitude'])
+                print('   Address:            %s' % loc['address'])
+                print('   City:               %s' % loc['municipality'])
+
+        else:
+            for station in line.stations:
+                print(station)
+
         sys.exit(0)
 
     runs = dpt.runs_to(arv)
