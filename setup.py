@@ -2,7 +2,7 @@ from distutils.core import setup
 
 setup(
     name='metraapi',
-    version='0.1.1',
+    version='0.2.0',
     author='Ian Dees, Eric Stein',
     author_email='toba@des.truct.org',
     packages=['metraapi'],
