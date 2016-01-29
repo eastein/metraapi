@@ -159,7 +159,8 @@ class Stations(object):
                 matches.append(station_obj)
 
         if len(matches) == 1:
-            if cls.geographic_test(matches[0], geographic_filter):
+            geographic_metric, geographically_acceptable = cls.geographic_test(matches[0], geographic_filter)
+            if geographically_acceptable:
                 return matches[0]
 
         needle_len = len(normalized_needle)

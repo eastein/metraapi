@@ -257,15 +257,25 @@ def ref_accessor(attr, getter):
                 else:
                     return (field, field)
 
-            if attr_object is not None:
-                if isinstance(fields, list):
+            if isinstance(fields, list):
+                transformed_fields = [field_transform(field) for field in fields]
+                if attr_object is not None:
                     return dict([
                         (field_to, getter(attr_object, field_from))
                         for
-                        (field_from, field_to) in [field_transform(field) for field in fields]
+                        (field_from, field_to) in transformed_fields
                     ])
                 else:
+                    return dict([
+                        (field_to, None)
+                        for
+                        (field_from, field_to) in transformed_fields
+                    ])
+            else:
+                if attr_object is not None:
                     return getter(attr_object, fields)
+                else:
+                    return None
         return inner
     return dec
 
@@ -316,17 +326,26 @@ class Station(object):
             })
 
     @property
-    @ref_accessor('gis_station', getattr)
     def location(self):
-        return ['latitude', 'longitude', 'municipality', 'address']
+        location_dictionary = dict()
+        location_dictionary.update(self.coordinates)
+        location_dictionary.update(self.postal_location)
+        return location_dictionary
 
     @property
+    @ref_accessor('gis_station', getattr)
+    def postal_location(self):
+        return ['municipality', 'address']
+
+    @property
+    @ref_accessor('gis_station', getattr)
     def fare_zone(self):
-        return self.gis_station.fare_zone
+        return 'fare_zone'
 
     @property
+    @ref_accessor('gis_station', getattr)
     def bike_parking(self):
-        return self.gis_station.bike_parking
+        return 'bike_parking'
 
     def __eq__(self, o):
         return (type(self) == type(o)) and (self.id == o.id)
@@ -480,21 +499,31 @@ if __name__ == '__main__':
         if insufficient_stations and dpt is not None:
             print('Station Info %s (%s)' % (dpt.id, line.id))
             print('')
-            print(' ID:                  %s' % dpt.id)
-            print(' Name:                %s' % dpt.name)
-            print(' Fare Zone:           %s' % dpt.fare_zone)
-            print(' Wheelchair Boarding: %s' % dpt.wheelchair_boarding)
-            print(' Bike parking spots:  %s' % dpt.bike_parking)
+            for field_text, field_attr in [
+                    ('ID', 'id'),
+                    ('Name', 'name'),
+                    ('Fare Zone', 'fare_zone'),
+                    ('Wheelchair Boarding', 'wheelchair_boarding'),
+                    ('Bike parking spots', 'bike_parking'),
+                ]:
+                v = getattr(dpt, field_attr)
+                if v is not None:
+                    print((' %s:' % field_text).ljust(24) + ('%s' % v))
 
             loc = dpt.location
-            if loc is None:
+            if len([v for v in loc.values() if v]) == 0:
                 print(' Location:             Unknown')
             else:
                 print(' Location:')
-                print('   Latitude:           %0.8f' % loc['latitude'])
-                print('   Longitude:          %0.8f' % loc['longitude'])
-                print('   Address:            %s' % loc['address'])
-                print('   City:               %s' % loc['municipality'])
+                for field_text, field_key, field_fmt in [
+                        ('Latitude', 'latitude', '%0.8f'),
+                        ('Longitude', 'longitude', '%0.8f'),
+                        ('Address', 'address', '%s'),
+                        ('City', 'municipality', '%s'),
+                    ]:
+                    v = loc.get(field_key)
+                    if v:
+                        print(('   %s:' % field_text).ljust(24) + (field_fmt % v))
 
         else:
             for station in line.stations:
