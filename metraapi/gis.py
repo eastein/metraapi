@@ -136,14 +136,14 @@ class Stations(object):
     @classmethod
     def geographic_test(cls, station_object, geographic_filter):
         if geographic_filter is None:
-            return True
+            return None, True
 
         dist = utility_funcs.distance((station_object.latitude, station_object.longitude),
                                       (geographic_filter['latitude'], geographic_filter['longitude']))
 
         acceptable = dist <= geographic_filter['distance_km']
 
-        return acceptable
+        return dist, acceptable
 
     @classmethod
     def find_station(cls, name, geographic_filter=None):
@@ -168,8 +168,9 @@ class Stations(object):
         min_metric = None
 
         for station in cls.get_station_data():
-            # out of range. Abort.
-            if not cls.geographic_test(station, geographic_filter):
+            geographic_metric, geographically_acceptable = cls.geographic_test(station, geographic_filter)
+            # if out of distance range, Abort.
+            if not geographically_acceptable:
                 continue
 
             # TODO linefilter: don't inspect stations from other lines. There are situations like Lake Forest where
@@ -180,25 +181,28 @@ class Stations(object):
             smaller_len = min(needle_len, haystack_len)
 
             for permuted_normalized_haystack in station.permuted_normalized_name:
-                if permuted_normalized_haystack == normalized_needle:
-                    return station
+                if geographic_filter is None:
+                    # here, if no geographic filter is specified the best we can do is an perfect match
+                    if permuted_normalized_haystack == normalized_needle:
+                        return station
 
                 lcs = utility_funcs.longest_common_substring(permuted_normalized_haystack, normalized_needle)
                 lcs_len = len(lcs)
 
                 # if the least common substring is significantly smaller than the
                 # smaller string... then it can't be right
-                if lcs_len < smaller_len * 0.8:
+                if lcs_len < smaller_len * 0.25:
                     continue
 
                 levenshtein_dist = utility_funcs.levenshtein(permuted_normalized_haystack, normalized_needle)
 
                 length_difference = abs(needle_len - haystack_len)
 
-                metric = levenshtein_dist - lcs_len
+                metric = levenshtein_dist - lcs_len + geographic_metric
 
                 if min_metric is None or metric < min_metric:
                     min_metric = metric
+                    #print 'new minimum metric: %0.7f for station %s' % (min_metric, station.name)
                     ret = station
 
         return ret
