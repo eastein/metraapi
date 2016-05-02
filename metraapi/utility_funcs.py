@@ -1,4 +1,3 @@
-from __future__ import absolute_import
 from __future__ import unicode_literals
 
 import re
@@ -8,7 +7,7 @@ import math
 
 
 def levenshtein(a, b):
-    "Calculates the Levenshtein distance between a and b."
+    """Calculates the Levenshtein distance between a and b."""
     n, m = len(a), len(b)
     if n > m:
         # Make sure n <= m, to use O(min(n,m)) space

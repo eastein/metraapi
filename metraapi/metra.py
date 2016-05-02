@@ -1,4 +1,3 @@
-from __future__ import absolute_import
 from __future__ import print_function
 
 import sys
@@ -13,15 +12,11 @@ import bisect
 import functools
 import types
 
-import requests
-
-# from .metraapi_internal import Internal, , \
-#    ,
-
-from . import metraapi_internal as internal
+import metraapi.metraapi_internal as internal
 import metraapi.gis
 import metraapi.gtfs
 
+import requests
 
 class MetraException(Exception):
 
@@ -106,7 +101,7 @@ class Cache(object):
         if isinstance(f, types.FunctionType):
             return '%s.%s' % (f.__module__, f.__name__)
         elif isinstance(f, types.MethodType):
-            f_key = '%s.%s.%s' % (f.im_class.__module__, f.im_class, f.__name__)
+            return '%s.%s.%s' % (f.im_class.__module__, f.im_class, f.__name__)
         else:
             return f.__name__
 
@@ -485,6 +480,7 @@ if __name__ == '__main__':
     station_problem = False
     insufficient_stations = False
     dpt = None
+    arv = None
     try:
         dpt = line.station(sys.argv[2].upper())
         arv = line.station(sys.argv[3].upper())

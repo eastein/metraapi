@@ -19,4 +19,3 @@ class TimeTests(unittest.TestCase):
         expect_evening = metraapi.metraapi_internal.Internal.localize(datetime.datetime(2015, 4, 16, 10, 25, 0, 0))
         self.assertEquals(metraapi.metraapi_internal.Internal.parse_reltime(self.EVENING_LOCAL, "10:25", 'am'), expect_evening)
         self.assertEquals(metraapi.metraapi_internal.Internal.parse_reltime(self.MORNING_LOCAL, "10:25", 'am'), expect_morning)
-        
